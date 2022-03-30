@@ -59,7 +59,7 @@ from azure.cli.core.azclierror import (ResourceNotFoundError, RequiredArgumentMi
 from msrestazure.tools import is_valid_resource_id, parse_resource_id
 
 from ._constants import (KUBE_DEFAULT_SKU, KUBE_ASP_KIND, KUBE_APP_KIND, KUBE_FUNCTION_APP_KIND,
-                         KUBE_FUNCTION_CONTAINER_APP_KIND, KUBE_CONTAINER_APP_KIND)
+                         KUBE_FUNCTION_CONTAINER_APP_KIND, KUBE_CONTAINER_APP_KIND, DEFAULT_API_VERSION)
 
 from ._utils import (_normalize_sku, get_sku_name, _generic_site_operation,
                      _get_location_from_resource_group, _validate_asp_sku)
@@ -76,25 +76,8 @@ logger = get_logger(__name__)
 # TODO remove and replace with calls to KubeEnvironmentsOperations once the SDK gets updated
 class KubeEnvironmentClient():
     @classmethod
-    def create(cls, cmd, resource_group_name, name, kube_environment_envelope):
-        management_hostname = cmd.cli_ctx.cloud.endpoints.resource_manager
-        api_version = "2020-12-01"
-        sub_id = get_subscription_id(cmd.cli_ctx)
-        url_fmt = "{}/subscriptions/{}/resourceGroups/{}/providers/Microsoft.Web/kubeEnvironments/{}?api-version={}"
-        request_url = url_fmt.format(
-            management_hostname.strip('/'),
-            sub_id,
-            resource_group_name,
-            name,
-            api_version)
-
-        r = send_raw_request(cmd.cli_ctx, "PUT", request_url, body=json.dumps(kube_environment_envelope))
-        return r.json()
-
-    @classmethod
     def update(cls, cmd, name, resource_group_name, kube_environment_envelope):
         management_hostname = cmd.cli_ctx.cloud.endpoints.resource_manager
-        api_version = "2020-12-01"
         sub_id = get_subscription_id(cmd.cli_ctx)
         url_fmt = "{}/subscriptions/{}/resourceGroups/{}/providers/Microsoft.Web/kubeEnvironments/{}?api-version={}"
         request_url = url_fmt.format(
@@ -102,7 +85,7 @@ class KubeEnvironmentClient():
             sub_id,
             resource_group_name,
             name,
-            api_version)
+            DEFAULT_API_VERSION)
 
         r = send_raw_request(cmd.cli_ctx, "PATCH", request_url, body=json.dumps(kube_environment_envelope))
         return r.json()
@@ -110,7 +93,6 @@ class KubeEnvironmentClient():
     @classmethod
     def show(cls, cmd, resource_group_name, name):
         management_hostname = cmd.cli_ctx.cloud.endpoints.resource_manager
-        api_version = "2020-12-01"
         sub_id = get_subscription_id(cmd.cli_ctx)
         url_fmt = "{}/subscriptions/{}/resourceGroups/{}/providers/Microsoft.Web/kubeEnvironments/{}?api-version={}"
         request_url = url_fmt.format(
@@ -118,7 +100,7 @@ class KubeEnvironmentClient():
             sub_id,
             resource_group_name,
             name,
-            api_version)
+            DEFAULT_API_VERSION)
 
         r = send_raw_request(cmd.cli_ctx, "GET", request_url)
         return r.json()
@@ -126,7 +108,6 @@ class KubeEnvironmentClient():
     @classmethod
     def delete(cls, cmd, resource_group_name, name):
         management_hostname = cmd.cli_ctx.cloud.endpoints.resource_manager
-        api_version = "2020-12-01"
         sub_id = get_subscription_id(cmd.cli_ctx)
         url_fmt = "{}/subscriptions/{}/resourceGroups/{}/providers/Microsoft.Web/kubeEnvironments/{}?api-version={}"
         request_url = url_fmt.format(
@@ -134,7 +115,7 @@ class KubeEnvironmentClient():
             sub_id,
             resource_group_name,
             name,
-            api_version)
+            DEFAULT_API_VERSION)
 
         send_raw_request(cmd.cli_ctx, "DELETE", request_url)  # API doesn't return JSON for some reason
 
@@ -143,12 +124,11 @@ class KubeEnvironmentClient():
         kube_list = []
 
         management_hostname = cmd.cli_ctx.cloud.endpoints.resource_manager
-        api_version = "2020-12-01"
         sub_id = get_subscription_id(cmd.cli_ctx)
         request_url = "{}/subscriptions/{}/providers/Microsoft.Web/kubeEnvironments?api-version={}".format(
             management_hostname.strip('/'),
             sub_id,
-            api_version)
+            DEFAULT_API_VERSION)
 
         r = send_raw_request(cmd.cli_ctx, "GET", request_url)
         j = r.json()
@@ -171,14 +151,13 @@ class KubeEnvironmentClient():
         kube_list = []
 
         management_hostname = cmd.cli_ctx.cloud.endpoints.resource_manager
-        api_version = "2020-12-01"
         sub_id = get_subscription_id(cmd.cli_ctx)
         url_fmt = "{}/subscriptions/{}/resourceGroups/{}/providers/Microsoft.Web/kubeEnvironments?api-version={}"
         request_url = url_fmt.format(
             management_hostname.strip('/'),
             sub_id,
             resource_group_name,
-            api_version)
+            DEFAULT_API_VERSION)
 
         r = send_raw_request(cmd.cli_ctx, "GET", request_url)
         j = r.json()
@@ -201,7 +180,6 @@ class AppServiceClient():
     @classmethod
     def create(cls, cmd, name, resource_group_name, appservice_json):
         management_hostname = cmd.cli_ctx.cloud.endpoints.resource_manager
-        api_version = "2020-12-01"
         sub_id = get_subscription_id(cmd.cli_ctx)
 
         url_fmt = "{}/subscriptions/{}/resourceGroups/{}/providers/Microsoft.Web/serverfarms/{}?api-version={}"
@@ -210,7 +188,7 @@ class AppServiceClient():
             sub_id,
             resource_group_name,
             name,
-            api_version)
+            DEFAULT_API_VERSION)
 
         r = send_raw_request(cmd.cli_ctx, "PUT", request_url, body=json.dumps(appservice_json))
         return r.json()
@@ -218,7 +196,6 @@ class AppServiceClient():
     @classmethod
     def update(cls, cmd, name, resource_group_name, appservice_json):
         management_hostname = cmd.cli_ctx.cloud.endpoints.resource_manager
-        api_version = "2020-12-01"
         sub_id = get_subscription_id(cmd.cli_ctx)
 
         url_fmt = "{}/subscriptions/{}/resourceGroups/{}/providers/Microsoft.Web/serverfarms/{}?api-version={}"
@@ -227,7 +204,7 @@ class AppServiceClient():
             sub_id,
             resource_group_name,
             name,
-            api_version)
+            DEFAULT_API_VERSION)
 
         r = send_raw_request(cmd.cli_ctx, "PUT", request_url, body=json.dumps(appservice_json))
         return r.json()
@@ -235,7 +212,6 @@ class AppServiceClient():
     @classmethod
     def show(cls, cmd, name, resource_group_name):
         management_hostname = cmd.cli_ctx.cloud.endpoints.resource_manager
-        api_version = "2020-12-01"
         sub_id = get_subscription_id(cmd.cli_ctx)
 
         url_fmt = "{}/subscriptions/{}/resourceGroups/{}/providers/Microsoft.Web/serverfarms/{}?api-version={}"
@@ -244,7 +220,7 @@ class AppServiceClient():
             sub_id,
             resource_group_name,
             name,
-            api_version)
+            DEFAULT_API_VERSION)
 
         r = send_raw_request(cmd.cli_ctx, "GET", request_url)
         return r.json()
@@ -254,7 +230,6 @@ class WebAppClient:
     @classmethod
     def create(cls, cmd, name, resource_group_name, webapp_json):
         management_hostname = cmd.cli_ctx.cloud.endpoints.resource_manager
-        api_version = "2020-12-01"
         sub_id = get_subscription_id(cmd.cli_ctx)
 
         url_fmt = "{}/subscriptions/{}/resourceGroups/{}/providers/Microsoft.Web/sites/{}?api-version={}"
@@ -263,7 +238,7 @@ class WebAppClient:
             sub_id,
             resource_group_name,
             name,
-            api_version)
+            DEFAULT_API_VERSION)
 
         r = send_raw_request(cmd.cli_ctx, "PUT", request_url, body=json.dumps(webapp_json))
         return r.json()
@@ -271,7 +246,6 @@ class WebAppClient:
     @classmethod
     def restart(cls, cmd, resource_group_name, name, slot=None):
         management_hostname = cmd.cli_ctx.cloud.endpoints.resource_manager
-        api_version = "2020-12-01"
         sub_id = get_subscription_id(cmd.cli_ctx)
 
         if slot is not None:
@@ -283,7 +257,7 @@ class WebAppClient:
                 resource_group_name,
                 name,
                 slot,
-                api_version)
+                DEFAULT_API_VERSION)
         else:
             url_fmt = "{}/subscriptions/{}/resourceGroups/{}/providers/Microsoft.Web/sites/{}/restart?api-version={}"
             request_url = url_fmt.format(
@@ -291,13 +265,13 @@ class WebAppClient:
                 sub_id,
                 resource_group_name,
                 name,
-                api_version)
+                DEFAULT_API_VERSION)
 
         send_raw_request(cmd.cli_ctx, "POST", request_url)
 
 
 def _get_kube_client(cmd):
-    client = web_client_factory(cmd.cli_ctx, api_version="2021-01-01")
+    client = web_client_factory(cmd.cli_ctx)
     return client.kube_environments
 
 
@@ -316,9 +290,12 @@ def delete_kube_environment(cmd, name, resource_group_name):
 def create_kube_environment(cmd, name, resource_group_name, custom_location, static_ip=None, location=None,
                             tags=None, no_wait=False):
     # pylint: disable=broad-except,no-member,protected-access
+    KubeEnvironment, ExtendedLocation, ArcConfiguration, FrontEndConfiguration = cmd.get_models('KubeEnvironment',
+        'ExtendedLocation', 'ArcConfiguration', 'FrontEndConfiguration')
 
     custom_location_client = customlocation_client_factory(cmd.cli_ctx)
     custom_location_object = None
+    client = _get_kube_client(cmd)
 
     if is_valid_resource_id(custom_location):
         parsed_custom_location = parse_resource_id(custom_location)
@@ -334,36 +311,28 @@ def create_kube_environment(cmd, name, resource_group_name, custom_location, sta
     if not location:
         location = custom_location_object.location
 
-    front_end_configuration = {"kind": "LoadBalancer"}
-
-    extended_location = {"customLocation": custom_location}
-
-    arc_configuration = {
-        "artifactsStorageType": "NetworkFileSystem",
-        "artifactStorageClassName": "default",
-        "frontEndServiceConfiguration": front_end_configuration
-    }
-
-    kube_environment = {
-        "kind": None,
-        "location": location,
-        "tags": tags,
-        "properties": {
-            "extendedLocation": extended_location,
-            "staticIp": static_ip,
-            "arcConfiguration": arc_configuration
-        }
-    }
+    front_end_configuration = FrontEndConfiguration(kind="LoadBalancer")
+    extended_location = ExtendedLocation(custom_location=custom_location)
+    arc_configuration = ArcConfiguration(
+        artifacts_storage_type="NetworkFileSystem", artifact_storage_class_name="default", front_end_service_configuration=front_end_configuration)
+    kube_environment = KubeEnvironment(
+        name=name,
+        location=location,
+        kind="null",
+        tags=tags,
+        plan=None,
+        extended_location=extended_location,
+        static_ip=static_ip,
+        arc_configuration=arc_configuration)
 
     try:
-        return sdk_no_wait(no_wait, KubeEnvironmentClient.create,
-                           cmd=cmd, resource_group_name=resource_group_name,
-                           name=name, kube_environment_envelope=kube_environment)
+        return sdk_no_wait(no_wait, client.create, resource_group_name=resource_group_name, name=name, kube_environment_envelope=kube_environment, polling=False)
     except Exception as e:
         try:
+            import json
             msg = json.loads(e.response._content)['Message']
-        except Exception as e2:
-            raise e from e2
+        except Exception as err:
+            raise e
     raise ValidationError(msg)
 
 
@@ -1754,7 +1723,6 @@ def _update_host_name_ssl_state(cmd, resource_group_name, webapp_name, webapp,
         webapp_dict["extendedLocation"]["type"] = "customLocation"
 
     management_hostname = cmd.cli_ctx.cloud.endpoints.resource_manager
-    api_version = "2020-12-01"
     sub_id = get_subscription_id(cmd.cli_ctx)
     if slot is None:
         url_fmt = "{}/subscriptions/{}/resourceGroups/{}/providers/Microsoft.Web/sites/{}?api-version={}"
@@ -1763,7 +1731,7 @@ def _update_host_name_ssl_state(cmd, resource_group_name, webapp_name, webapp,
             sub_id,
             resource_group_name,
             webapp_name,
-            api_version)
+            DEFAULT_API_VERSION)
     else:
         url_fmt = "{}/subscriptions/{}/resourceGroups/{}/providers/Microsoft.Web/sites/{}/slots/{}?api-version={}"
         request_url = url_fmt.format(
@@ -1772,7 +1740,7 @@ def _update_host_name_ssl_state(cmd, resource_group_name, webapp_name, webapp,
             resource_group_name,
             webapp_name,
             slot,
-            api_version)
+            DEFAULT_API_VERSION)
 
     return send_raw_request(cmd.cli_ctx, "PUT", request_url, body=json.dumps(webapp_dict))
 
@@ -1791,7 +1759,7 @@ def _match_host_names_from_cert(hostnames_from_cert, hostnames_in_webapp):
 
 
 def _update_ssl_binding(cmd, resource_group_name, name, certificate_thumbprint, ssl_type, slot=None):
-    client = web_client_factory(cmd.cli_ctx, api_version="2021-01-01")
+    client = web_client_factory(cmd.cli_ctx)
     webapp = client.web_apps.get(resource_group_name, name)
     if not webapp:
         raise ResourceNotFoundError("'{}' app doesn't exist".format(name))

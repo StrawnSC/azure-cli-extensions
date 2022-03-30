@@ -76,3 +76,20 @@ class WebappBasicE2EKubeTest(ScenarioTest):
 
         self.cmd('webapp update -g {} -n {} --https-only true'.format(resource_group, webapp_name), checks=[JMESPathCheck("httpsOnly", True)])
         self.cmd('webapp update -g {} -n {} --https-only false'.format(resource_group, webapp_name), checks=[JMESPathCheck("httpsOnly", False)])
+
+
+class LimaAppE2ETest(ScenarioTest):
+    # requires at least one kubernetes app in the test runner's subscription
+    def setUp(self):
+        self._custom_location = sorted(self.cmd('appservice kube list --query "[].extendedLocation.name"').get_output_in_json())[-1]
+
+    @ResourceGroupPreparer(location="westus2")
+    def test_basic_lima_app_create(self, resource_group):
+        webapp_name = self.create_random_name(prefix='lima-test', length=24)
+        self.cmd(f"az webapp create -g {resource_group} -n {webapp_name} --custom-location {self._custom_location} --runtime 'DOTNET|6.0'")
+
+
+
+    # def __init__(*args, **kwargs):
+
+    #     return super(*args, **kwargs)

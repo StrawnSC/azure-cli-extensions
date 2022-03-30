@@ -13,3 +13,5 @@ KUBE_FUNCTION_CONTAINER_APP_KIND = 'linux,kubernetes,functionapp,container'
 MULTI_CONTAINER_TYPES = ['COMPOSE', 'KUBE']
 
 OS_TYPES = ['Windows', 'Linux']
+
+DEFAULT_API_VERSION = "2021-03-01"
