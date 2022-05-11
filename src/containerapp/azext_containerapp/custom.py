@@ -753,7 +753,10 @@ def create_managed_environment(cmd,
                                internal_only=False,
                                tags=None,
                                disable_warnings=False,
+                               zone_redundant=False,
                                no_wait=False):
+    if zone_redundant and not infrastructure_subnet_resource_id:
+        raise RequiredArgumentMissingError("Cannot use --zone-redundant without --infrastructure-subnet-resource-id")
 
     location = location or _get_location_from_resource_group(cmd.cli_ctx, resource_group_name)
 
@@ -776,6 +779,7 @@ def create_managed_environment(cmd,
     managed_env_def["properties"]["internalLoadBalancerEnabled"] = False
     managed_env_def["properties"]["appLogsConfiguration"] = app_logs_config_def
     managed_env_def["tags"] = tags
+    managed_env_def["properties"]["zoneRedundant"] = zone_redundant
 
     if instrumentation_key is not None:
         managed_env_def["properties"]["daprAIInstrumentationKey"] = instrumentation_key
