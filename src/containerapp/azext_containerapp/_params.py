@@ -135,7 +135,7 @@ def load_arguments(self, _):
         c.argument('docker_bridge_cidr', options_list=['--docker-bridge-cidr'], help='CIDR notation IP range assigned to the Docker bridge. It must not overlap with any Subnet IP ranges or the IP range defined in Platform Reserved CIDR, if defined')
         c.argument('platform_reserved_cidr', options_list=['--platform-reserved-cidr'], help='IP range in CIDR notation that can be reserved for environment infrastructure IP addresses. It must not overlap with any other Subnet IP ranges')
         c.argument('platform_reserved_dns_ip', options_list=['--platform-reserved-dns-ip'], help='An IP address from the IP range defined by Platform Reserved CIDR that will be reserved for the internal DNS server.')
-        c.argument('internal_only', arg_type=get_three_state_flag(), options_list=['--internal-only'], help='Boolean indicating the environment only has an internal load balancer. These environments do not have a public static IP resource, therefore must provide infrastructureSubnetResourceId and appSubnetResourceId if enabling this property')
+        c.argument('internal_only', arg_type=get_three_state_flag(), options_list=['--internal-only'], help='Boolean indicating the environment only has an internal load balancer. These environments do not have a public static IP resource, therefore must provide infrastructureSubnetResourceId if enabling this property')
     with self.argument_context('containerapp env create') as c:
         c.argument('zone_redundant', options_list=["--zone-redundant", "-z"], help="Enable zone redundancy on the environment. Cannot be used without --infrastructure-subnet-resource-id")
 
@@ -181,6 +181,11 @@ def load_arguments(self, _):
         c.argument('from_revision', help='Revision to copy from. Default: latest revision.')
         c.argument('image', options_list=['--image', '-i'], help="Container image, e.g. publisher/image-name:tag.")
 
+    with self.argument_context('containerapp revision label') as c:
+        c.argument('name', id_part=None)
+        c.argument('revision', help='Name of the revision.')
+        c.argument('label', help='Name of the label.')
+
     with self.argument_context('containerapp ingress') as c:
         c.argument('allow_insecure', help='Allow insecure connections for ingress traffic.')
         c.argument('type', validator=validate_ingress, arg_type=get_enum_type(['internal', 'external']), help="The ingress type.")
@@ -188,7 +193,8 @@ def load_arguments(self, _):
         c.argument('target_port', type=int, validator=validate_target_port, help="The application port used for ingress traffic.")
 
     with self.argument_context('containerapp ingress traffic') as c:
-        c.argument('traffic_weights', nargs='*', options_list=['--traffic-weight'], help="A list of revision weight(s) for the container app. Space-separated values in 'revision_name=weight' format. For latest revision, use 'latest=weight'")
+        c.argument('revision_weights', nargs='+', options_list=['--revision-weight'], help="A list of revision weight(s) for the container app. Space-separated values in 'revision_name=weight' format. For latest revision, use 'latest=weight'")
+        c.argument('label_weights', nargs='+', options_list=['--label-weight'], help="A list of label weight(s) for the container app. Space-separated values in 'label_name=weight' format.")
 
     with self.argument_context('containerapp secret') as c:
         c.argument('secrets', nargs='+', options_list=['--secrets', '-s'], help="A list of secret(s) for the container app. Space-separated values in 'key=value' format (where 'key' cannot be longer than 20 characters).")
