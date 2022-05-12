@@ -9,7 +9,7 @@ import sys
 from datetime import datetime
 
 from knack.log import get_logger
-from azure.cli.core.util import open_page_in_browser
+from azure.cli.core.util import open_page_in_browser, get_secret_store
 from azure.cli.core.auth.persistence import SecretStore, build_persistence
 from azure.cli.core.azclierror import (ValidationError, CLIInternalError, UnclassifiedUserFault)
 
@@ -33,11 +33,7 @@ GITHUB_OAUTH_SCOPES = [
 
 
 def _get_github_token_secret_store(cmd):
-    location = os.path.join(cmd.cli_ctx.config.config_dir, "github_token_cache")
-    # TODO use core CLI util to take care of this once it's merged and released
-    encrypt = sys.platform.startswith('win32')  # encryption not supported on non-windows platforms
-    file_persistence = build_persistence(location, encrypt)
-    return SecretStore(file_persistence)
+    return get_secret_store(cmd.cli_ctx, "github_token_cache")
 
 
 def cache_github_token(cmd, token, repo):
