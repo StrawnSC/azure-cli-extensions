@@ -12,7 +12,8 @@ from urllib.parse import urlparse
 from datetime import datetime
 from dateutil.relativedelta import relativedelta
 from azure.cli.core.azclierror import (ValidationError, RequiredArgumentMissingError, CLIInternalError,
-                                       ResourceNotFoundError, ArgumentUsageError, FileOperationError, CLIError)
+                                       ResourceNotFoundError, FileOperationError, CLIError, InvalidArgumentValueError,
+                                       MutuallyExclusiveArgumentError)
 from azure.cli.core.commands.client_factory import get_subscription_id
 from azure.cli.command_modules.appservice.utils import _normalize_location
 from azure.cli.command_modules.network._client_factory import network_client_factory
@@ -23,7 +24,7 @@ from msrestazure.tools import parse_resource_id, is_valid_resource_id, resource_
 from ._clients import ContainerAppClient, ManagedEnvironmentClient
 from ._client_factory import handle_raw_exception, providers_client_factory, cf_resource_groups, log_analytics_client_factory, log_analytics_shared_key_client_factory
 from ._constants import (MAXIMUM_CONTAINER_APP_NAME_LENGTH, SHORT_POLLING_INTERVAL_SECS, LONG_POLLING_INTERVAL_SECS,
-                         LOG_ANALYTICS_RP, CONTAINER_APPS_RP, CHECK_CERTIFICATE_NAME_AVAILABILITY_TYPE)
+                         LOG_ANALYTICS_RP, CONTAINER_APPS_RP, CHECK_CERTIFICATE_NAME_AVAILABILITY_TYPE, ACR_IMAGE_SUFFIX)
 from ._models import (ContainerAppCustomDomainEnvelope as ContainerAppCustomDomainEnvelopeModel)
 
 logger = get_logger(__name__)
@@ -951,7 +952,7 @@ def _get_app_from_revision(revision):
 
 def _infer_acr_credentials(cmd, registry_server, disable_warnings=False):
     # If registry is Azure Container Registry, we can try inferring credentials
-    if '.azurecr.io' not in registry_server:
+    if ACR_IMAGE_SUFFIX not in registry_server:
         raise RequiredArgumentMissingError('Registry username and password are required if not using Azure Container Registry.')
     not disable_warnings and logger.warning('No credential was provided to access Azure Container Registry. Trying to look up credentials...')
     parsed = urlparse(registry_server)
@@ -1324,3 +1325,81 @@ def get_custom_domains(cmd, resource_group_name, name, location=None, environmen
     except CLIError as e:
         handle_raw_exception(e)
     return custom_domains
+
+
+def set_managed_identity(cmd, name, resource_group_name, containerapp_def, system_assigned=False, user_assigned=None):
+    assign_system_identity = system_assigned
+    if not user_assigned:
+        user_assigned = []
+    assign_user_identities = [x.lower() for x in user_assigned]
+
+    # If identity not returned
+    try:
+        containerapp_def["identity"]
+        containerapp_def["identity"]["type"]
+    except:
+        containerapp_def["identity"] = {}
+        containerapp_def["identity"]["type"] = "None"
+
+    if assign_system_identity and containerapp_def["identity"]["type"].__contains__("SystemAssigned"):
+        logger.warning("System identity is already assigned to containerapp")
+
+    # Assign correct type
+    try:
+        if containerapp_def["identity"]["type"] != "None":
+            if containerapp_def["identity"]["type"] == "SystemAssigned" and assign_user_identities:
+                containerapp_def["identity"]["type"] = "SystemAssigned,UserAssigned"
+            if containerapp_def["identity"]["type"] == "UserAssigned" and assign_system_identity:
+                containerapp_def["identity"]["type"] = "SystemAssigned,UserAssigned"
+        else:
+            if assign_system_identity and assign_user_identities:
+                containerapp_def["identity"]["type"] = "SystemAssigned,UserAssigned"
+            elif assign_system_identity:
+                containerapp_def["identity"]["type"] = "SystemAssigned"
+            elif assign_user_identities:
+                containerapp_def["identity"]["type"] = "UserAssigned"
+    except:
+        # Always returns "type": "None" when CA has no previous identities
+        pass
+
+    if assign_user_identities:
+        try:
+            containerapp_def["identity"]["userAssignedIdentities"]
+        except:
+            containerapp_def["identity"]["userAssignedIdentities"] = {}
+
+        subscription_id = get_subscription_id(cmd.cli_ctx)
+
+        for r in assign_user_identities:
+            r = _ensure_identity_resource_id(subscription_id, resource_group_name, r).replace("resourceGroup", "resourcegroup")
+            isExisting = False
+
+            if not containerapp_def["identity"].get("userAssignedIdentities"):
+                containerapp_def["identity"]["userAssignedIdentities"] = {}
+
+            for old_user_identity in containerapp_def["identity"]["userAssignedIdentities"]:
+                if old_user_identity.lower() == r.lower():
+                    isExisting = True
+                    logger.warning("User identity %s is already assigned to containerapp", old_user_identity)
+                    break
+
+            if not isExisting:
+                containerapp_def["identity"]["userAssignedIdentities"][r] = {}
+
+
+def system_identity_warning():
+    logger.warning("\nThe system-assigned identity must have AcrPull permissions to the registry. "
+                   "After making changes to the permissions, deploy a new revision or restart the current revision. "
+                   "\nSee `az containerapp revision restart -h`.")
+
+
+def validate_identity(identity, image, registry_server, registry_user, registry_pass):
+    if identity:
+        if registry_server and ACR_IMAGE_SUFFIX not in registry_server:
+            raise ValidationError("Cannot use --registry-identity on non-ACR registries")
+        if not registry_server and image and ACR_IMAGE_SUFFIX not in image:
+            raise ValidationError("Cannot use --registry-identity on non-ACR registries")
+        if identity.lower() != "system" and not is_valid_resource_id(identity):
+            raise InvalidArgumentValueError("--registry-identity must either be 'system' or a resource id. Use 'az identity show' to get an identity's resouce id")
+        if registry_user or registry_pass:
+            raise MutuallyExclusiveArgumentError("--registry-identity cannot be used with registry username and password.")

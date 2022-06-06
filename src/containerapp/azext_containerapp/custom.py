@@ -62,13 +62,14 @@ from ._utils import (_validate_subscription_registered, _get_location_from_resou
                      _update_revision_env_secretrefs, _get_acr_cred, safe_get, await_github_action, repo_url_to_name,
                      validate_container_app_name, _update_weights, get_vnet_location, register_provider_if_needed,
                      generate_randomized_cert_name, _get_name, load_cert_file, check_cert_name_availability,
-                     validate_hostname, patch_new_custom_domain, get_custom_domains, _validate_revision_name)
+                     validate_hostname, patch_new_custom_domain, get_custom_domains, _validate_revision_name, set_managed_identity,
+                     validate_identity, system_identity_warning)
 
 
 from ._ssh_utils import (SSH_DEFAULT_ENCODING, WebSocketConnection, read_ssh, get_stdin_writer, SSH_CTRL_C_MSG,
                          SSH_BACKUP_ENCODING)
 from ._constants import (MAXIMUM_SECRET_LENGTH, MICROSOFT_SECRET_SETTING_NAME, FACEBOOK_SECRET_SETTING_NAME, GITHUB_SECRET_SETTING_NAME,
-                         GOOGLE_SECRET_SETTING_NAME, TWITTER_SECRET_SETTING_NAME, APPLE_SECRET_SETTING_NAME, CONTAINER_APPS_RP)
+                         GOOGLE_SECRET_SETTING_NAME, TWITTER_SECRET_SETTING_NAME, APPLE_SECRET_SETTING_NAME, CONTAINER_APPS_RP, ACR_IMAGE_SUFFIX)
 
 logger = get_logger(__name__)
 
@@ -316,9 +317,11 @@ def create_containerapp(cmd,
                         no_wait=False,
                         system_assigned=False,
                         disable_warnings=False,
-                        user_assigned=None):
+                        user_assigned=None,
+                        registry_identity=None):
     register_provider_if_needed(cmd, CONTAINER_APPS_RP)
     validate_container_app_name(name)
+    validate_identity(registry_identity, image, registry_server, registry_user, registry_pass)
 
     if yaml:
         if image or managed_env or min_replicas or max_replicas or target_port or ingress or\
@@ -371,18 +374,20 @@ def create_containerapp(cmd,
 
     registries_def = None
     if registry_server is not None:
-        registries_def = RegistryCredentialsModel
+        registries_def = {"server": registry_server}
+        if registry_identity is None:
+            # Infer credentials if not supplied and its azurecr
+            if registry_user is None or registry_pass is None:
+                registry_user, registry_pass = _infer_acr_credentials(cmd, registry_server, disable_warnings)
 
-        # Infer credentials if not supplied and its azurecr
-        if registry_user is None or registry_pass is None:
-            registry_user, registry_pass = _infer_acr_credentials(cmd, registry_server, disable_warnings)
+            registries_def["server"] = registry_server
+            registries_def["username"] = registry_user
 
-        registries_def["server"] = registry_server
-        registries_def["username"] = registry_user
-
-        if secrets_def is None:
-            secrets_def = []
-        registries_def["passwordSecretRef"] = store_as_secret_and_return_secret_ref(secrets_def, registry_user, registry_server, registry_pass, disable_warnings=disable_warnings)
+            if secrets_def is None:
+                secrets_def = []
+            registries_def["passwordSecretRef"] = store_as_secret_and_return_secret_ref(secrets_def, registry_user, registry_server, registry_pass, disable_warnings=disable_warnings)
+        else:
+            registries_def["identity"] = registry_identity
 
     dapr_def = None
     if dapr_enabled:
@@ -462,6 +467,13 @@ def create_containerapp(cmd,
     containerapp_def["properties"]["configuration"] = config_def
     containerapp_def["properties"]["template"] = template_def
     containerapp_def["tags"] = tags
+
+    if registry_identity:
+        system_assigned_identity = registry_identity.lower() == "system"
+        user_assigned = None if system_assigned_identity else [registry_identity]
+        set_managed_identity(cmd, name, resource_group_name, containerapp_def, system_assigned_identity, user_assigned)
+        if system_assigned_identity:
+            system_identity_warning()
 
     try:
         r = ContainerAppClient.create_or_update(
@@ -892,12 +904,6 @@ def delete_managed_environment(cmd, name, resource_group_name, no_wait=False):
 
 def assign_managed_identity(cmd, name, resource_group_name, system_assigned=False, user_assigned=None, no_wait=False):
     _validate_subscription_registered(cmd, CONTAINER_APPS_RP)
-
-    assign_system_identity = system_assigned
-    if not user_assigned:
-        user_assigned = []
-    assign_user_identities = [x.lower() for x in user_assigned]
-
     containerapp_def = None
 
     # Get containerapp properties of CA we are updating
@@ -910,56 +916,7 @@ def assign_managed_identity(cmd, name, resource_group_name, system_assigned=Fals
         raise ResourceNotFoundError("The containerapp '{}' does not exist".format(name))
 
     _get_existing_secrets(cmd, resource_group_name, name, containerapp_def)
-
-    # If identity not returned
-    try:
-        containerapp_def["identity"]
-        containerapp_def["identity"]["type"]
-    except:
-        containerapp_def["identity"] = {}
-        containerapp_def["identity"]["type"] = "None"
-
-    if assign_system_identity and containerapp_def["identity"]["type"].__contains__("SystemAssigned"):
-        logger.warning("System identity is already assigned to containerapp")
-
-    # Assign correct type
-    try:
-        if containerapp_def["identity"]["type"] != "None":
-            if containerapp_def["identity"]["type"] == "SystemAssigned" and assign_user_identities:
-                containerapp_def["identity"]["type"] = "SystemAssigned,UserAssigned"
-            if containerapp_def["identity"]["type"] == "UserAssigned" and assign_system_identity:
-                containerapp_def["identity"]["type"] = "SystemAssigned,UserAssigned"
-        else:
-            if assign_system_identity and assign_user_identities:
-                containerapp_def["identity"]["type"] = "SystemAssigned,UserAssigned"
-            elif assign_system_identity:
-                containerapp_def["identity"]["type"] = "SystemAssigned"
-            elif assign_user_identities:
-                containerapp_def["identity"]["type"] = "UserAssigned"
-    except:
-        # Always returns "type": "None" when CA has no previous identities
-        pass
-
-    if assign_user_identities:
-        try:
-            containerapp_def["identity"]["userAssignedIdentities"]
-        except:
-            containerapp_def["identity"]["userAssignedIdentities"] = {}
-
-        subscription_id = get_subscription_id(cmd.cli_ctx)
-
-        for r in assign_user_identities:
-            r = _ensure_identity_resource_id(subscription_id, resource_group_name, r).replace("resourceGroup", "resourcegroup")
-            isExisting = False
-
-            for old_user_identity in containerapp_def["identity"]["userAssignedIdentities"]:
-                if old_user_identity.lower() == r.lower():
-                    isExisting = True
-                    logger.warning("User identity {} is already assigned to containerapp".format(old_user_identity))
-                    break
-
-            if not isExisting:
-                containerapp_def["identity"]["userAssignedIdentities"][r] = {}
+    set_managed_identity(cmd, name, resource_group_name, containerapp_def, system_assigned, user_assigned)
 
     try:
         r = ContainerAppClient.create_or_update(cmd=cmd, resource_group_name=resource_group_name, name=name, container_app_envelope=containerapp_def, no_wait=no_wait)
@@ -1152,9 +1109,10 @@ def create_or_update_github_action(cmd,
         azure_credentials["subscriptionId"] = get_subscription_id(cmd.cli_ctx)
 
     # Registry
-    if registry_username is None or registry_password is None:
+    # TODO use identity
+    if (registry_username is None or registry_password is None):
         # If registry is Azure Container Registry, we can try inferring credentials
-        if not registry_url or '.azurecr.io' not in registry_url:
+        if not registry_url or ACR_IMAGE_SUFFIX not in registry_url:
             raise RequiredArgumentMissingError('Registry url is required if using Azure Container Registry, otherwise Registry username and password are required if using Dockerhub')
         logger.warning('No credential was provided to access Azure Container Registry. Trying to look up...')
         parsed = urlparse(registry_url)
@@ -1741,7 +1699,8 @@ def list_registry(cmd, name, resource_group_name):
         raise ValidationError("The containerapp {} has no assigned registries.".format(name)) from e
 
 
-def set_registry(cmd, name, resource_group_name, server, username=None, password=None, disable_warnings=False, no_wait=False):
+# TODO use identity
+def set_registry(cmd, name, resource_group_name, server, username=None, password=None, disable_warnings=False, identity=None, no_wait=False):
     _validate_subscription_registered(cmd, CONTAINER_APPS_RP)
 
     containerapp_def = None
@@ -1763,9 +1722,9 @@ def set_registry(cmd, name, resource_group_name, server, username=None, password
 
     registries_def = containerapp_def["properties"]["configuration"]["registries"]
 
-    if not username or not password:
+    if (not username or not password) and not identity:
         # If registry is Azure Container Registry, we can try inferring credentials
-        if '.azurecr.io' not in server:
+        if ACR_IMAGE_SUFFIX not in server:
             raise RequiredArgumentMissingError('Registry username and password are required if you are not using Azure Container Registry.')
         not disable_warnings and logger.warning('No credential was provided to access Azure Container Registry. Trying to look up...')
         parsed = urlparse(server)
@@ -1791,20 +1750,32 @@ def set_registry(cmd, name, resource_group_name, server, username=None, password
                     r["server"],
                     password,
                     update_existing_secret=True)
+            if identity:
+                r["identity"] = identity
 
     # If not updating existing registry, add as new registry
     if not updating_existing_registry:
         registry = RegistryCredentialsModel
         registry["server"] = server
-        registry["username"] = username
-        registry["passwordSecretRef"] = store_as_secret_and_return_secret_ref(
-            containerapp_def["properties"]["configuration"]["secrets"],
-            username,
-            server,
-            password,
-            update_existing_secret=True)
+        if not identity:
+            registry["username"] = username
+            registry["passwordSecretRef"] = store_as_secret_and_return_secret_ref(
+                containerapp_def["properties"]["configuration"]["secrets"],
+                username,
+                server,
+                password,
+                update_existing_secret=True)
+        else:
+            registry["identity"] = identity
 
         registries_def.append(registry)
+
+    if identity:
+        system_assigned_identity = identity.lower() == "system"
+        user_assigned = None if system_assigned_identity else [identity]
+        set_managed_identity(cmd, name, resource_group_name, containerapp_def, system_assigned_identity, user_assigned)
+        if system_assigned_identity:
+            system_identity_warning()
 
     try:
         r = ContainerAppClient.create_or_update(
@@ -2235,7 +2206,8 @@ def containerapp_up(cmd,
                     context_path=None,
                     service_principal_client_id=None,
                     service_principal_client_secret=None,
-                    service_principal_tenant_id=None):
+                    service_principal_tenant_id=None,
+                    registry_identity=None):  # note: this param is not currently exposed
     from ._up_utils import (_validate_up_args, _reformat_image, _get_dockerfile_content, _get_ingress_and_target_port,
                             ResourceGroup, ContainerAppEnvironment, ContainerApp, _get_registry_from_app,
                             _get_registry_details, _create_github_action, _set_up_defaults, up_output,
@@ -2245,7 +2217,7 @@ def containerapp_up(cmd,
     dockerfile = "Dockerfile"  # for now the dockerfile name must be "Dockerfile" (until GH actions API is updated)
 
     register_provider_if_needed(cmd, CONTAINER_APPS_RP)
-    _validate_up_args(cmd, source, image, repo, registry_server)
+    _validate_up_args(cmd, source, image, repo, registry_server, registry_identity, registry_user, registry_pass)
     validate_container_app_name(name)
     check_env_name_on_rg(cmd, managed_env, resource_group_name, location)
 
@@ -2266,7 +2238,7 @@ def containerapp_up(cmd,
 
     resource_group = ResourceGroup(cmd, name=resource_group_name, location=location)
     env = ContainerAppEnvironment(cmd, managed_env, resource_group, location=location, logs_key=logs_key, logs_customer_id=logs_customer_id)
-    app = ContainerApp(cmd, name, resource_group, None, image, env, target_port, registry_server, registry_user, registry_pass, env_vars, ingress)
+    app = ContainerApp(cmd, name, resource_group, None, image, env, target_port, registry_server, registry_user, registry_pass, env_vars, ingress, registry_identity)
 
     _set_up_defaults(cmd, name, resource_group_name, logs_customer_id, location, resource_group, env, app)
 
@@ -2298,7 +2270,7 @@ def containerapp_up(cmd,
     up_output(app)
 
 
-def containerapp_up_logic(cmd, resource_group_name, name, managed_env, image, env_vars, ingress, target_port, registry_server, registry_user, registry_pass):
+def containerapp_up_logic(cmd, resource_group_name, name, managed_env, image, env_vars, ingress, target_port, registry_server, registry_user, registry_pass, identity):
     containerapp_def = None
     try:
         containerapp_def = ContainerAppClient.show(cmd=cmd, resource_group_name=resource_group_name, name=name)
@@ -2383,8 +2355,8 @@ def containerapp_up_logic(cmd, resource_group_name, name, managed_env, image, en
     registries_def = containerapp_def["properties"]["configuration"]["registries"]
 
     if registry_server:
-        if not registry_pass or not registry_user:
-            if '.azurecr.io' not in registry_server:
+        if (not registry_pass or not registry_user) and not identity:
+            if ACR_IMAGE_SUFFIX not in registry_server:
                 raise RequiredArgumentMissingError('Registry url is required if using Azure Container Registry, otherwise Registry username and password are required if using Dockerhub')
             logger.warning('No credential was provided to access Azure Container Registry. Trying to look up...')
             parsed = urlparse(registry_server)
@@ -2405,21 +2377,32 @@ def containerapp_up_logic(cmd, resource_group_name, name, managed_env, image, en
                         registry_pass,
                         update_existing_secret=True,
                         disable_warnings=True)
+                if identity:
+                    r["identity"] = identity
+                break
 
         # If not updating existing registry, add as new registry
         if not updating_existing_registry:
             registry = RegistryCredentialsModel
             registry["server"] = registry_server
-            registry["username"] = registry_user
-            registry["passwordSecretRef"] = store_as_secret_and_return_secret_ref(
-                containerapp_def["properties"]["configuration"]["secrets"],
-                registry_user,
-                registry_server,
-                registry_pass,
-                update_existing_secret=True,
-                disable_warnings=True)
+            if not identity:
+                registry["username"] = registry_user
+                registry["passwordSecretRef"] = store_as_secret_and_return_secret_ref(
+                    containerapp_def["properties"]["configuration"]["secrets"],
+                    registry_user,
+                    registry_server,
+                    registry_pass,
+                    update_existing_secret=True,
+                    disable_warnings=True)
+            else:
+                registry["identity"] = identity
 
             registries_def.append(registry)
+
+        if identity:
+            system_assigned_identity = identity.lower() == "system"
+            user_assigned = None if system_assigned_identity else [identity]
+            set_managed_identity(cmd, name, resource_group_name, containerapp_def, system_assigned_identity, user_assigned)
 
     try:
         if ca_exists:

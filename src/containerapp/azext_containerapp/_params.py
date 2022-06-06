@@ -94,6 +94,7 @@ def load_arguments(self, _):
         c.argument('registry_pass', validator=validate_registry_pass, options_list=['--registry-password'], help="The password to log in to container registry. If stored as a secret, value must start with \'secretref:\' followed by the secret name.")
         c.argument('registry_user', validator=validate_registry_user, options_list=['--registry-username'], help="The username to log in to container registry.")
         c.argument('secrets', nargs='*', options_list=['--secrets', '-s'], help="A list of secret(s) for the container app. Space-separated values in 'key=value' format.")
+        c.argument('registry_identity', help="The managed identity with which to authenticate to the Azure Container Registry (instead of username/password). Use 'system' for a system-defined identity or a resource id for a user-defined identity. The managed identity should have acrpull permissions on the ACR before deployment.")
 
     # Ingress
     with self.argument_context('containerapp', arg_group='Ingress') as c:
@@ -246,6 +247,7 @@ def load_arguments(self, _):
         c.argument('server', help="The container registry server, e.g. myregistry.azurecr.io")
         c.argument('username', help='The username of the registry. If using Azure Container Registry, we will try to infer the credentials if not supplied')
         c.argument('password', help='The password of the registry. If using Azure Container Registry, we will try to infer the credentials if not supplied')
+        c.argument('identity', help="The managed identity with which to authenticate to the Azure Container Registry (instead of username/password). Use 'system' for a system-defined identity or a resource id for a user-defined identity. The managed identity should have acrpull permissions on the ACR before deployment.")
 
     with self.argument_context('containerapp registry list') as c:
         c.argument('name', id_part=None)
@@ -265,6 +267,7 @@ def load_arguments(self, _):
         c.argument('source', help='Local directory path to upload to Azure container registry.')
         c.argument('image', options_list=['--image', '-i'], help="Container image, e.g. publisher/image-name:tag.")
         c.argument('browse', help='Open the app in a web browser after creation and deployment, if possible.')
+        c.ignore('registry_identity')  # to be implemented in a future release
 
     with self.argument_context('containerapp up', arg_group='Log Analytics (Environment)') as c:
         c.argument('logs_customer_id', options_list=['--logs-workspace-id'], help='Name or resource ID of the Log Analytics workspace to send diagnostics logs to. You can use \"az monitor log-analytics workspace create\" to create one. Extra billing may apply.')
