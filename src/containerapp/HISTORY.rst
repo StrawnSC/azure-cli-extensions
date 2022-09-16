@@ -3,6 +3,11 @@
 Release History
 ===============
 
+0.3.12
+++++++
+* Add 'az containerapp env update' to update managed environment properties
+* Add custom domains support to 'az containerapp env create' and 'az containerapp env update'
+
 0.3.11
 ++++++
 * Add keda scale rule parameters to 'az containerapp create', 'az containerapp update' and 'az containerapp revision copy'
