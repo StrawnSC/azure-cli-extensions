@@ -23,8 +23,15 @@ ManagedEnvironment = {
         "daprAIInstrumentationKey": None,
         "vnetConfiguration": None,  # VnetConfiguration
         "internalLoadBalancerEnabled": None,
-        "appLogsConfiguration": None
+        "appLogsConfiguration": None,
+        "customDomainConfiguration": None  # CustomDomainConfiguration
     }
+}
+
+CustomDomainConfiguration = {
+    "dnsSuffix": None,
+    "certificateValue": None,
+    "certificatePassword": None
 }
 
 AppLogsConfiguration = {
@@ -43,7 +50,11 @@ Dapr = {
     "enabled": False,
     "appId": None,
     "appProtocol": None,
-    "appPort": None
+    "appPort": None,
+    "httpReadBufferSize": None,
+    "httpMaxRequestSize": None,
+    "logLevel": None,
+    "enableApiLogging": None
 }
 
 EnvironmentVar = {
@@ -103,8 +114,8 @@ HttpScaleRule = {
 ScaleRule = {
     "name": None,
     "azureQueue": None,  # QueueScaleRule
-    "customScaleRule": None,  # CustomScaleRule
-    "httpScaleRule": None,  # HttpScaleRule
+    "custom": None,  # CustomScaleRule
+    "http": None,  # HttpScaleRule
 }
 
 Secret = {

@@ -2,7 +2,7 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the MIT License. See License.txt in the project root for license information.
 # --------------------------------------------------------------------------------------------
-# pylint: disable=line-too-long, consider-using-f-string, no-else-return, duplicate-string-formatting-argument, expression-not-assigned, too-many-locals, logging-fstring-interpolation, broad-except
+# pylint: disable=line-too-long, consider-using-f-string, no-else-return, duplicate-string-formatting-argument, expression-not-assigned, too-many-locals, logging-fstring-interpolation, broad-except, pointless-statement, bare-except
 
 import time
 import json
@@ -12,7 +12,7 @@ from urllib.parse import urlparse
 from datetime import datetime
 from dateutil.relativedelta import relativedelta
 from azure.cli.core.azclierror import (ValidationError, RequiredArgumentMissingError, CLIInternalError,
-                                       ResourceNotFoundError, FileOperationError, CLIError, InvalidArgumentValueError, UnauthorizedError)
+                                       ResourceNotFoundError, FileOperationError, CLIError, UnauthorizedError)
 from azure.cli.core.commands.client_factory import get_subscription_id
 from azure.cli.command_modules.appservice.utils import _normalize_location
 from azure.cli.command_modules.network._client_factory import network_client_factory
@@ -86,8 +86,7 @@ def _create_service_principal(client, app_id):
 
 def _create_role_assignment(cli_ctx, role, assignee, scope=None):
     import uuid
-    from azure.cli.core.profiles import ResourceType, get_sdk, supported_api_version
-    from azure.cli.core.commands.client_factory import get_mgmt_service_client
+    from azure.cli.core.profiles import get_sdk, supported_api_version
 
     auth_client = get_mgmt_service_client(cli_ctx, ResourceType.MGMT_AUTHORIZATION)
     assignments_client = auth_client.role_assignments
@@ -369,6 +368,42 @@ def parse_secret_flags(secret_list):
     return secret_var_def
 
 
+def parse_metadata_flags(metadata_list, metadata_def={}):  # pylint: disable=dangerous-default-value
+    if not metadata_list:
+        metadata_list = []
+    for pair in metadata_list:
+        key_val = pair.split('=', 1)
+        if len(key_val) != 2:
+            raise ValidationError("Metadata must be in format \"<key>=<value> <key>=<value> ...\".")
+        if key_val[0] in metadata_def:
+            raise ValidationError("Duplicate metadata \"{metadata}\" found, metadata keys must be unique.".format(metadata=key_val[0]))
+        metadata_def[key_val[0]] = key_val[1]
+
+    return metadata_def
+
+
+def parse_auth_flags(auth_list):
+    auth_pairs = {}
+    if not auth_list:
+        auth_list = []
+    for pair in auth_list:
+        key_val = pair.split('=', 1)
+        if len(key_val) != 2:
+            raise ValidationError("Auth parameters must be in format \"<triggerParameter>=<secretRef> <triggerParameter>=<secretRef> ...\".")
+        if key_val[0] in auth_pairs:
+            raise ValidationError("Duplicate trigger parameter \"{param}\" found, trigger paramaters must be unique.".format(param=key_val[0]))
+        auth_pairs[key_val[0]] = key_val[1]
+
+    auth_def = []
+    for key, value in auth_pairs.items():
+        auth_def.append({
+            "triggerParameter": key,
+            "secretRef": value
+        })
+
+    return auth_def
+
+
 def _update_revision_env_secretrefs(containers, name):
     for container in containers:
         if "env" in container:
@@ -533,7 +568,7 @@ def _get_log_analytics_workspace_name(cmd, logs_customer_id, resource_group_name
     raise ResourceNotFoundError("Cannot find Log Analytics workspace with customer ID {}".format(logs_customer_id))
 
 
-def _generate_log_analytics_if_not_provided(cmd, logs_customer_id, logs_key, location, resource_group_name):
+def _generate_log_analytics_if_not_provided(cmd, logs_customer_id, logs_key, location, resource_group_name):  # pylint: disable=too-many-statements
     if logs_customer_id is None and logs_key is None:
         logger.warning("No Log Analytics workspace provided.")
         _validate_subscription_registered(cmd, LOG_ANALYTICS_RP)
@@ -1034,6 +1069,16 @@ def safe_get(model, *keys, default=None):
     return model.get(keys[-1], default)
 
 
+def safe_set(model, *keys, value):
+    penult = {}
+    for k in keys:
+        if k not in model:
+            model[k] = {}
+        penult = model
+        model = model[k]
+    penult[keys[-1]] = value
+
+
 def is_platform_windows():
     return platform.system() == "Windows"
 
@@ -1087,7 +1132,7 @@ def get_profile_username():
 
 
 def create_resource_group(cmd, rg_name, location):
-    from azure.cli.core.profiles import ResourceType, get_sdk
+    from azure.cli.core.profiles import get_sdk
     rcf = _resource_client_factory(cmd.cli_ctx)
     resource_group = get_sdk(cmd.cli_ctx, ResourceType.MGMT_RESOURCE_RESOURCES, 'ResourceGroup', mod='models')
     rg_params = resource_group(location=location)
@@ -1100,8 +1145,6 @@ def get_resource_group(cmd, rg_name):
 
 
 def _resource_client_factory(cli_ctx, **_):
-    from azure.cli.core.commands.client_factory import get_mgmt_service_client
-    from azure.cli.core.profiles import ResourceType
     return get_mgmt_service_client(cli_ctx, ResourceType.MGMT_RESOURCE_RESOURCES)
 
 
@@ -1135,7 +1178,6 @@ def queue_acr_build(cmd, registry_rg, registry_name, img_name, src_dir, dockerfi
     # So we need to update the docker_file_path
     docker_file_path = docker_file_in_tar
 
-    from azure.cli.core.profiles import ResourceType
     OS, Architecture = cmd.get_models('OS', 'Architecture', resource_type=ResourceType.MGMT_CONTAINERREGISTRY, operation_group='runs')
     # Default platform values
     platform_os = OS.linux.value
@@ -1182,9 +1224,7 @@ def queue_acr_build(cmd, registry_rg, registry_name, img_name, src_dir, dockerfi
 
 
 def _get_acr_cred(cli_ctx, registry_name):
-    from azure.mgmt.containerregistry import ContainerRegistryManagementClient
     from azure.cli.core.commands.parameters import get_resources_in_subscription
-    from azure.cli.core.commands.client_factory import get_mgmt_service_client
 
     client = get_mgmt_service_client(cli_ctx, ContainerRegistryManagementClient).registries
 
@@ -1207,7 +1247,6 @@ def _get_acr_cred(cli_ctx, registry_name):
 def create_new_acr(cmd, registry_name, resource_group_name, location=None, sku="Basic"):
     # from azure.cli.command_modules.acr.custom import acr_create
     from azure.cli.command_modules.acr._client_factory import cf_acr_registries
-    from azure.cli.core.profiles import ResourceType
     from azure.cli.core.commands import LongRunningOperation
 
     client = cf_acr_registries(cmd.cli_ctx)
@@ -1461,7 +1500,7 @@ def create_acrpull_role_assignment(cmd, registry_server, registry_identity=None,
                 if skip_error:
                     logger.error(message)
                 else:
-                    raise UnauthorizedError(message)
+                    raise UnauthorizedError(message) from e
             else:
                 time.sleep(5)
 
@@ -1482,7 +1521,7 @@ def validate_environment_location(cmd, location):
 
     location_count = {}
     for loc in locations:
-        location_count[loc] = len([e for e in env_list if e["location"] == loc])
+        location_count[loc] = len([e for e in env_list if e["location"] == loc])  # pylint: disable=used-before-assignment
 
     disallowed_locations = []
     for _, value in enumerate(location_count):
