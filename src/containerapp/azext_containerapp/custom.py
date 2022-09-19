@@ -29,7 +29,7 @@ from msrestazure.tools import parse_resource_id, is_valid_resource_id
 from msrest.exceptions import DeserializationError
 
 from ._client_factory import handle_raw_exception
-from ._clients import ManagedEnvironmentClient, ContainerAppClient, GitHubActionClient, DaprComponentClient, StorageClient, AuthClient
+from ._clients import ManagedEnvironmentClient, ContainerAppClient, GitHubActionClient, DaprComponentClient, StorageClient, AuthClient, WorkloadProfileClient
 from ._github_oauth import get_github_access_token
 from ._models import (
     ManagedEnvironment as ManagedEnvironmentModel,
@@ -65,7 +65,7 @@ from ._utils import (_validate_subscription_registered, _get_location_from_resou
                      generate_randomized_cert_name, _get_name, load_cert_file, check_cert_name_availability,
                      validate_hostname, patch_new_custom_domain, get_custom_domains, _validate_revision_name, set_managed_identity,
                      create_acrpull_role_assignment, is_registry_msi_system, clean_null_values, _populate_secret_values,
-                     validate_environment_location)
+                     validate_environment_location, get_workload_profile_type)
 from ._validators import validate_create
 from ._ssh_utils import (SSH_DEFAULT_ENCODING, WebSocketConnection, read_ssh, get_stdin_writer, SSH_CTRL_C_MSG,
                          SSH_BACKUP_ENCODING)
@@ -297,6 +297,7 @@ def create_containerapp_yaml(cmd, name, resource_group_name, file_name, no_wait=
         handle_raw_exception(e)
 
 
+# TODO allow passing workload profile
 def create_containerapp(cmd,
                         name,
                         resource_group_name,
@@ -903,7 +904,8 @@ def create_managed_environment(cmd,
                                tags=None,
                                disable_warnings=False,
                                zone_redundant=False,
-                               no_wait=False):
+                               no_wait=False,
+                               plan=None):
     if zone_redundant:
         if not infrastructure_subnet_resource_id:
             raise RequiredArgumentMissingError("Cannot use --zone-redundant/-z without "
@@ -939,6 +941,18 @@ def create_managed_environment(cmd,
     managed_env_def["properties"]["appLogsConfiguration"] = app_logs_config_def
     managed_env_def["tags"] = tags
     managed_env_def["properties"]["zoneRedundant"] = zone_redundant
+    managed_env_def["sku"]["name"] = plan
+
+    if plan == "premium":
+        default_workload_profiles = [
+            {
+                "workloadProfileType": "GP1",
+                "MinimumCount": 3,  # TODO take this from the workload profiles API
+                "MaximumCount": 3,  # TODO increase once the API is fixed
+            }
+        ]
+        managed_env_def["properties"]["workloadProfiles"] = default_workload_profiles
+
 
     if instrumentation_key is not None:
         managed_env_def["properties"]["daprAIInstrumentationKey"] = instrumentation_key
@@ -2302,6 +2316,7 @@ def open_containerapp_in_browser(cmd, name, resource_group_name):
     open_page_in_browser(url)
 
 
+# TODO allow deploying to premium SKU envs
 def containerapp_up(cmd,
                     name,
                     resource_group_name=None,
@@ -3422,3 +3437,49 @@ def show_auth_config(cmd, resource_group_name, name):
     except:
         pass
     return auth_settings
+
+
+def list_supported_workload_profiles(cmd, location):
+    return WorkloadProfileClient.list_supported(cmd, location)
+
+
+def list_workload_profiles(cmd, resource_group_name, env_name):
+    return WorkloadProfileClient.list(cmd, resource_group_name, env_name)
+
+
+def show_workload_profile(cmd, resource_group_name, env_name, workload_name):
+    workload_name = get_workload_profile_type(workload_name)
+    workload_profiles = WorkloadProfileClient.list(cmd, resource_group_name, env_name)
+    profile = [p for p in workload_profiles if p["workloadProfileType"].lower() == workload_name.lower()]
+    if not profile:
+        raise ValidationError(f"No workload profile found with name {workload_name} on the environment. The workload profile(s) on the environment are: {','.join([p['workloadProfileType'] for p in workload_profiles])}")
+    return profile[0]
+
+
+def set_workload_profile(cmd, resource_group_name, env_name, workload_name, min_nodes, max_nodes):
+    workload_name = get_workload_profile_type(workload_name)
+    workload_profiles = WorkloadProfileClient.list(cmd, resource_group_name, env_name)
+    profile = [p for p in workload_profiles if p["workloadProfileType"].lower() == workload_name.lower()]
+    update = False  # flag for updating an existing profile
+    if profile:
+        profile = profile[0]
+        update = True
+    else:
+        profile = {"workloadProfileType": workload_name}
+
+    profile["maximumCount"] = max_nodes
+    profile["minimumCount"] = min_nodes
+
+    env = show_managed_environment(cmd, env_name, resource_group_name)
+    if not env["sku"]["name"].lower() == "premium":
+        raise ValidationError("Environment is not a premium sku environment.")
+    if not update:
+        env["properties"]["workloadProfiles"].append(profile)
+    else:
+        idx = [i for i, p in enumerate(env["properties"]["workloadProfiles"]) if p["workloadProfileType"].lower() == workload_name.lower()][0]
+        env["properties"]["workloadProfiles"][idx] = profile
+
+    return ManagedEnvironmentClient.create(cmd=cmd, resource_group_name=resource_group_name, name=env_name, managed_environment_envelope=env)
+
+
+

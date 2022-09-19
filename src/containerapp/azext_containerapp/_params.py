@@ -142,6 +142,7 @@ def load_arguments(self, _):
         c.argument('internal_only', arg_type=get_three_state_flag(), options_list=['--internal-only'], help='Boolean indicating the environment only has an internal load balancer. These environments do not have a public static IP resource, therefore must provide infrastructureSubnetResourceId if enabling this property')
     with self.argument_context('containerapp env create') as c:
         c.argument('zone_redundant', options_list=["--zone-redundant", "-z"], help="Enable zone redundancy on the environment. Cannot be used without --infrastructure-subnet-resource-id. If used with --location, the subnet's location must match")
+        c.argument('plan', help="The sku of the containerapp environment. --infrastructure-subnet-resource-id/-s is required for premium sku", arg_type=get_enum_type(['consumption', 'premium'], default="consumption"))
 
     with self.argument_context('containerapp env update') as c:
         c.argument('name', name_type, help='Name of the Container Apps environment.')
@@ -340,3 +341,7 @@ def load_arguments(self, _):
 
     with self.argument_context('containerapp hostname delete') as c:
         c.argument('hostname', help='The custom domain name.')
+
+    with self.argument_context('containerapp env workload-profile') as c:
+        c.argument('env_name', options_list=['--name', '-n'])
+        c.argument('workload_name', options_list=['--workload-profile', '-p'])

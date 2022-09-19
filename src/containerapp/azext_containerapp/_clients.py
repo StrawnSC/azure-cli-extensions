@@ -690,6 +690,37 @@ class ManagedEnvironmentClient():
         r = send_raw_request(cmd.cli_ctx, "POST", request_url, body=json.dumps(name_availability_request))
         return r.json()
 
+class WorkloadProfileClient():
+    @classmethod
+    def list_supported(cls, cmd, location):
+        management_hostname = cmd.cli_ctx.cloud.endpoints.resource_manager
+        api_version = CURRENT_API_VERSION
+        sub_id = get_subscription_id(cmd.cli_ctx)
+        url_fmt = "{}/subscriptions/{}/providers/Microsoft.App/locations/{}/availableManagedEnvironmentsWorkloadProfileTypes?api-version={}"
+        request_url = url_fmt.format(
+            management_hostname.strip('/'),
+            sub_id,
+            location,
+            api_version)
+
+        r = send_raw_request(cmd.cli_ctx, "GET", request_url)
+        return r.json()
+
+    @classmethod
+    def list(cls, cmd, resource_group_name, env_name):
+        management_hostname = cmd.cli_ctx.cloud.endpoints.resource_manager
+        api_version = CURRENT_API_VERSION
+        sub_id = get_subscription_id(cmd.cli_ctx)
+        url_fmt = "{}/subscriptions/{}/resourcegroups/{}/providers/Microsoft.App/managedEnvironments/{}/workloadProfileStates?api-version={}"
+        request_url = url_fmt.format(
+            management_hostname.strip('/'),
+            sub_id,
+            resource_group_name,
+            env_name,
+            api_version)
+
+        r = send_raw_request(cmd.cli_ctx, "GET", request_url)
+        return r.json()
 
 class GitHubActionClient():
     @classmethod

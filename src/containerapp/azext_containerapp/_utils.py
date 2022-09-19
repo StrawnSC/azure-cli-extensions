@@ -1522,3 +1522,8 @@ def list_environment_locations(cmd):
     res_locations = [res_loc.lower().replace(" ", "").replace("(", "").replace(")", "") for res_loc in res_locations if res_loc.strip()]
 
     return res_locations
+
+
+# normalizes workload profile name
+def get_workload_profile_type(name):
+    return name  # TODO implement, use
