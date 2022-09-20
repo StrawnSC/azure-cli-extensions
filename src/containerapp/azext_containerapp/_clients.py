@@ -689,6 +689,7 @@ class ManagedEnvironmentClient():
         r = send_raw_request(cmd.cli_ctx, "POST", request_url, body=json.dumps(name_availability_request))
         return r.json()
 
+
 class WorkloadProfileClient():
     @classmethod
     def list_supported(cls, cmd, location):
@@ -703,7 +704,7 @@ class WorkloadProfileClient():
             api_version)
 
         r = send_raw_request(cmd.cli_ctx, "GET", request_url)
-        return r.json()
+        return r.json().get("value")
 
     @classmethod
     def list(cls, cmd, resource_group_name, env_name):
@@ -711,6 +712,7 @@ class WorkloadProfileClient():
         api_version = CURRENT_API_VERSION
         sub_id = get_subscription_id(cmd.cli_ctx)
         url_fmt = "{}/subscriptions/{}/resourcegroups/{}/providers/Microsoft.App/managedEnvironments/{}/workloadProfileStates?api-version={}"
+        # url_fmt = "{}/subscriptions/{}/resourcegroups/{}/providers/Microsoft.App/managedEnvironments/{}/getWorkloadProfileStates?api-version={}"
         request_url = url_fmt.format(
             management_hostname.strip('/'),
             sub_id,
@@ -719,7 +721,8 @@ class WorkloadProfileClient():
             api_version)
 
         r = send_raw_request(cmd.cli_ctx, "GET", request_url)
-        return r.json()
+        return r.json().get("value")
+
 
 class GitHubActionClient():
     @classmethod

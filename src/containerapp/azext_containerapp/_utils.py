@@ -25,7 +25,7 @@ from azure.mgmt.containerregistry import ContainerRegistryManagementClient
 from knack.log import get_logger
 from msrestazure.tools import parse_resource_id, is_valid_resource_id, resource_id
 
-from ._clients import ContainerAppClient, ManagedEnvironmentClient
+from ._clients import ContainerAppClient, ManagedEnvironmentClient, WorkloadProfileClient
 from ._client_factory import handle_raw_exception, providers_client_factory, cf_resource_groups, log_analytics_client_factory, log_analytics_shared_key_client_factory
 from ._constants import (MAXIMUM_CONTAINER_APP_NAME_LENGTH, SHORT_POLLING_INTERVAL_SECS, LONG_POLLING_INTERVAL_SECS,
                          LOG_ANALYTICS_RP, CONTAINER_APPS_RP, CHECK_CERTIFICATE_NAME_AVAILABILITY_TYPE, ACR_IMAGE_SUFFIX)
@@ -1564,5 +1564,40 @@ def list_environment_locations(cmd):
 
 
 # normalizes workload profile name
-def get_workload_profile_type(name):
-    return name  # TODO implement, use
+def get_workload_profile_type(cmd, name, location):
+    name = name.lower()
+    workload_profiles = WorkloadProfileClient.list_supported(cmd, location)
+    if not workload_profiles:
+        raise ValidationError(f"Workload Profiles not supported in region {location}")
+    for p in workload_profiles:
+        if name == p["name"].lower() or name == p["properties"]["displayName"].lower() or name == p["properties"]["displayName"].lower().replace(" ", ""):
+            return p["name"]
+    raise ValidationError(f"Not a valid workload profile name: '{name}'. Run 'az containerapp env workload-profile list-supported -l {location}' to see options.")
+
+
+def get_default_workload_profile(cmd, location):
+    workload_profiles = WorkloadProfileClient.list_supported(cmd, location)
+    default_profiles = [p for p in workload_profiles if p["properties"].get("default")]
+    if not default_profiles:
+        raise ValidationError(f"Workload Profiles not supported in region {location}")
+    return default_profiles[0]["name"]
+
+
+def get_default_workload_profile_from_env(cmd, env_def, resource_group):
+    location = env_def["location"]
+    api_default = get_default_workload_profile(cmd, location)
+    env_profiles = WorkloadProfileClient.list(cmd, resource_group, env_def["name"])
+    if api_default in [p["name"] for p in env_profiles]:
+        return api_default
+    return env_profiles[0]["name"]
+
+
+def get_default_workload_profiles(cmd, location):
+    profiles = [
+            {
+                "workloadProfileType": get_default_workload_profile(cmd, location),
+                "MinimumCount": 3,
+                "MaximumCount": 5,
+            }
+    ]
+    return profiles

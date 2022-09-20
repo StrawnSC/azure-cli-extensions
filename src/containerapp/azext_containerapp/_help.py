@@ -1079,3 +1079,44 @@ examples:
         az containerapp auth twitter update  -g myResourceGroup --name MyContainerapp \\
           --consumer-key my-client-id --consumer-secret very_secret_password
 """
+
+helps['containerapp env workload-profile'] = """
+type: group
+short-summary: Manage containerapp environment workload profiles.
+"""
+
+helps['containerapp env workload-profile list-supported'] = """
+type: command
+short-summary: Show the supported workload profiles for a region
+examples:
+  - name: Show the supported workload profiles for the eastus region
+    text: |
+        az containerapp env workload-profile list-supported -l eastus
+"""
+
+helps['containerapp env workload-profile list'] = """
+type: command
+short-summary: Show the current workload profile configurations on a Container App environment
+examples:
+  - name: Show the workload profile settings on environment 'env' in resource group 'group'
+    text: |
+        az containerapp env workload-profile list -n env -g group
+"""
+
+helps['containerapp env workload-profile set'] = """
+type: command
+short-summary: Update or set the minimum/maximum node count for a workload profile on a Container App environment
+examples:
+  - name: Set the min/max node count to 3 and 4, respectively, for the workload profile CO1 in Container App environment 'env' in resource group 'group'
+    text: |
+        az containerapp env workload-profile set -n env -g group --workload-profile CO1 --min-nodes 3 --max-nodes 4
+"""
+
+helps['containerapp env workload-profile show'] = """
+type: command
+short-summary: Show the minimum/maximum node settings for a workload profile on a Container App environment
+examples:
+  - name: Show the settings for workload profile GP1 on environment 'env' in resource group 'group'
+    text: |
+        az containerapp env workload-profile show -n env -g group -p GP1
+"""
