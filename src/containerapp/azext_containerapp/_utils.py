@@ -1594,10 +1594,10 @@ def get_default_workload_profile_from_env(cmd, env_def, resource_group):
 
 def get_default_workload_profiles(cmd, location):
     profiles = [
-            {
-                "workloadProfileType": get_default_workload_profile(cmd, location),
-                "MinimumCount": 3,
-                "MaximumCount": 5,
-            }
+        {
+            "workloadProfileType": get_default_workload_profile(cmd, location),
+            "MinimumCount": 3,
+            "MaximumCount": 5,
+        }
     ]
     return profiles

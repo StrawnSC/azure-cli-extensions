@@ -69,7 +69,7 @@ from ._utils import (_validate_subscription_registered, _ensure_location_allowed
                      validate_hostname, patch_new_custom_domain, get_custom_domains, _validate_revision_name, set_managed_identity,
                      create_acrpull_role_assignment, is_registry_msi_system, clean_null_values, _populate_secret_values,
                      validate_environment_location, safe_set, parse_metadata_flags, parse_auth_flags, get_workload_profile_type,
-                     get_default_workload_profile, get_default_workload_profile_from_env, get_default_workload_profiles)
+                     get_default_workload_profile_from_env, get_default_workload_profiles)
 from ._validators import validate_create
 from ._ssh_utils import (SSH_DEFAULT_ENCODING, WebSocketConnection, read_ssh, get_stdin_writer, SSH_CTRL_C_MSG,
                          SSH_BACKUP_ENCODING)
