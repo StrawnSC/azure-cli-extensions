@@ -313,6 +313,8 @@ class ContainerAppPremiumSkuTest(ScenarioTest):
     def test_containerapp_env_premium_sku_e2e(self, resource_group):
         env = self.create_random_name(prefix='env', length=24)
         vnet = self.create_random_name(prefix='name', length=24)
+        app1 = self.create_random_name(prefix='app1', length=24)
+        app2 = self.create_random_name(prefix='app2', length=24)
 
         self.cmd(f"az network vnet create -l centraluseuap --address-prefixes '14.0.0.0/23' -g {resource_group} -n {vnet}")
         sub_id = self.cmd(f"az network vnet subnet create --address-prefixes '14.0.0.0/23' -n sub -g {resource_group} --vnet-name {vnet}").get_output_in_json()["id"]
@@ -336,10 +338,32 @@ class ContainerAppPremiumSkuTest(ScenarioTest):
         self.assertEqual(len(profiles), 1)
         self.assertEqual(profiles[0]["name"], "GP1")
 
-        # self.cmd(f"az containerapp env workoad-profile show -g {resource_group} -n {env} -p 'general purpose 1' ", checks=[
-        #     JMESPathCheck("")
-        # ])
+        self.cmd(f"az containerapp env workoad-profile show -g {resource_group} -n {env} -p 'general purpose 1' ", checks=[
+            JMESPathCheck("name", "GP1"),
+            JMESPathCheck("properties.maximumCount", 5),
+            JMESPathCheck("properties.minimumCount", 3),
+            JMESPathCheck("type", "/providers/Microsoft.App/workloadProfileStates"),
+        ])
 
-        # self.cmd(f"az containerapp env workoad-profile set ")
+        self.cmd(f"az containerapp env workoad-profile set -g {resource_group} -n {env} -p 'general purpose 1' --min-nodes 4 --max-nodes 6")
+        self.cmd(f"az containerapp env workoad-profile show -g {resource_group} -n {env} -p 'general purpose 1' ", checks=[
+            JMESPathCheck("name", "GP1"),
+            JMESPathCheck("properties.maximumCount", 6),
+            JMESPathCheck("properties.minimumCount", 4),
+            JMESPathCheck("type", "/providers/Microsoft.App/workloadProfileStates"),
+        ])
 
-        # self.cmd(f"az containerapp env workoad-profile set ")
+        self.cmd(f"az containerapp env workoad-profile set -g {resource_group} -n {env} -p 'general purpose 2' --min-nodes 3 --max-nodes 5")
+        self.cmd(f"az containerapp env workoad-profile show -g {resource_group} -n {env} -p GP2 ", checks=[
+            JMESPathCheck("name", "GP2"),
+            JMESPathCheck("properties.maximumCount", 5),
+            JMESPathCheck("properties.minimumCount", 3),
+            JMESPathCheck("type", "/providers/Microsoft.App/workloadProfileStates"),
+        ])
+
+        while containerapp_env["properties"]["provisioningState"].lower() == "waiting":
+            time.sleep(5)
+            containerapp_env = self.cmd(f'containerapp env show -g {resource_group} -n {env}').get_output_in_json()
+
+        self.cmd(f"az containerapp create -g {resource_group} --target-port 80 --ingress external --image mcr.microsoft.com/azuredocs/containerapps-helloworld:latest --environment {env} -n {app1}")
+        self.cmd(f"az containerapp create -g {resource_group} --target-port 80 --ingress external --image mcr.microsoft.com/azuredocs/containerapps-helloworld:latest --environment {env} -n {app2} --workload-profile GP2")
