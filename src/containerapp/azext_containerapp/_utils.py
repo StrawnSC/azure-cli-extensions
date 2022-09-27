@@ -1576,7 +1576,7 @@ def get_workload_profile_type(cmd, name, location):
         raise ValidationError(f"Not a valid workload profile name: '{name}'. Run 'az containerapp env workload-profile list-supported -l {location}' to see options.")
     except:  # TODO fix once ARM rollout complete
         if len(name) == 3:
-            return name
+            return name.upper()
         return "".join([w[0] for w in name.split(" ")]).upper()
 
 
