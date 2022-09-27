@@ -484,7 +484,7 @@ def create_containerapp(cmd,
         scale_rule_def = ScaleRuleModel
         curr_metadata = {}
         if scale_rule_http_concurrency:
-            if scale_rule_type == "http":
+            if scale_rule_type in ('http', 'tcp'):
                 curr_metadata["concurrentRequests"] = str(scale_rule_http_concurrency)
         metadata_def = parse_metadata_flags(scale_rule_metadata, curr_metadata)
         auth_def = parse_auth_flags(scale_rule_auth)
@@ -801,7 +801,7 @@ def update_containerapp_logic(cmd,
         scale_rule_def = ScaleRuleModel
         curr_metadata = {}
         if scale_rule_http_concurrency:
-            if scale_rule_type == "http":
+            if scale_rule_type in ('http', 'tcp'):
                 curr_metadata["concurrentRequests"] = str(scale_rule_http_concurrency)
         metadata_def = parse_metadata_flags(scale_rule_metadata, curr_metadata)
         auth_def = parse_auth_flags(scale_rule_auth)
@@ -1114,7 +1114,7 @@ def update_managed_environment(cmd,
                                certificate_file=None,
                                certificate_password=None,
                                tags=None,
-                               plan=None,
+                               #plan=None,
                                workload_name=None,
                                min_nodes=None,
                                max_nodes=None,
@@ -1124,8 +1124,8 @@ def update_managed_environment(cmd,
     except CLIError as e:
         handle_raw_exception(e)
 
-    if plan and r["sku"]["name"].lower() == "premium" and plan.lower() == "consumption":
-        raise InvalidArgumentValueError("Cannot downgrade a premium sku environment to consumption")
+    # if plan and r["sku"]["name"].lower() == "premium" and plan.lower() == "consumption":
+    #     raise InvalidArgumentValueError("Cannot downgrade a premium sku environment to consumption")
 
     # General setup
     env_def = {}
@@ -1141,13 +1141,13 @@ def update_managed_environment(cmd,
         safe_set(cert_def, "certificatePassword", value=certificate_password)
         safe_set(cert_def, "certificateValue", value=blob)
 
-    if plan and plan.lower() == "premium":
-        safe_set(env_def, "sku", "name", value="Premium")
-        safe_set(env_def, "properties", "workloadProfiles", value=get_default_workload_profiles(cmd, r["location"]))
-        safe_set(env_def, "properties", "vnetConfiguration", value=r["properties"]["vnetConfiguration"])
+    # if plan and plan.lower() == "premium":
+    #     safe_set(env_def, "sku", "name", value="Premium")
+    #     safe_set(env_def, "properties", "workloadProfiles", value=get_default_workload_profiles(cmd, r["location"]))
+    #     safe_set(env_def, "properties", "vnetConfiguration", value=r["properties"]["vnetConfiguration"])
 
     if workload_name:
-        if not r["sku"]["name"].lower() == "premium" and not (plan and plan.lower() == "premium"):
+        if not r["sku"]["name"].lower() == "premium": #and not (plan and plan.lower() == "premium"):
             raise ValidationError("Environment is not a premium sku environment.")
 
         workload_name = get_workload_profile_type(cmd, workload_name, r["location"])
