@@ -28,7 +28,8 @@ from msrestazure.tools import parse_resource_id, is_valid_resource_id, resource_
 from ._clients import ContainerAppClient, ManagedEnvironmentClient, WorkloadProfileClient
 from ._client_factory import handle_raw_exception, providers_client_factory, cf_resource_groups, log_analytics_client_factory, log_analytics_shared_key_client_factory
 from ._constants import (MAXIMUM_CONTAINER_APP_NAME_LENGTH, SHORT_POLLING_INTERVAL_SECS, LONG_POLLING_INTERVAL_SECS,
-                         LOG_ANALYTICS_RP, CONTAINER_APPS_RP, CHECK_CERTIFICATE_NAME_AVAILABILITY_TYPE, ACR_IMAGE_SUFFIX)
+                         LOG_ANALYTICS_RP, CONTAINER_APPS_RP, CHECK_CERTIFICATE_NAME_AVAILABILITY_TYPE, ACR_IMAGE_SUFFIX,
+                         DEFAULT_WORKLOAD_PROFILE, DEFAULT_MIN_NODES, DEFAULT_MAX_NODES)
 from ._models import (ContainerAppCustomDomainEnvelope as ContainerAppCustomDomainEnvelopeModel)
 
 logger = get_logger(__name__)
@@ -1588,7 +1589,7 @@ def get_default_workload_profile(cmd, location):
             raise ValidationError(f"Workload Profiles not supported in region {location}")
         return default_profiles[0]["name"]
     except:  # TODO remove once ARM deployment complete
-        return "GP1"
+        return DEFAULT_WORKLOAD_PROFILE
 
 
 def get_default_workload_profile_from_env(cmd, env_def, resource_group):
@@ -1604,8 +1605,17 @@ def get_default_workload_profiles(cmd, location):
     profiles = [
         {
             "workloadProfileType": get_default_workload_profile(cmd, location),
-            "MinimumCount": 3,
-            "MaximumCount": 5,
+            "MinimumCount": DEFAULT_MIN_NODES,
+            "MaximumCount": DEFAULT_MAX_NODES,
         }
     ]
     return profiles
+
+
+def ensure_workload_profile_supported(cmd, env_name, env_rg, workload_profile, managed_env_info):
+    from .custom import update_managed_environment
+
+    profiles = [p["workloadProfileType"] for p in safe_get(managed_env_info, "properties", "workloadProfiles", default=[])]
+    if workload_profile not in profiles:
+        logger.warning("Adding new workload profile to the environment")
+        update_managed_environment(cmd, env_name, env_rg, workload_name=workload_profile, min_nodes=DEFAULT_MIN_NODES, max_nodes=DEFAULT_MAX_NODES)

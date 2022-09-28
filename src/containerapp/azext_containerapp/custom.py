@@ -69,7 +69,7 @@ from ._utils import (_validate_subscription_registered, _ensure_location_allowed
                      validate_hostname, patch_new_custom_domain, get_custom_domains, _validate_revision_name, set_managed_identity,
                      create_acrpull_role_assignment, is_registry_msi_system, clean_null_values, _populate_secret_values,
                      validate_environment_location, safe_set, parse_metadata_flags, parse_auth_flags, get_workload_profile_type,
-                     get_default_workload_profile_from_env, get_default_workload_profiles)
+                     get_default_workload_profile_from_env, get_default_workload_profiles, ensure_workload_profile_supported)
 from ._validators import validate_create
 from ._ssh_utils import (SSH_DEFAULT_ENCODING, WebSocketConnection, read_ssh, get_stdin_writer, SSH_CTRL_C_MSG,
                          SSH_BACKUP_ENCODING)
@@ -541,6 +541,8 @@ def create_containerapp(cmd,
     if workload_profile:
         workload_profile = get_workload_profile_type(cmd, workload_profile, location)
         containerapp_def["properties"]["workloadProfileType"] = workload_profile
+
+        ensure_workload_profile_supported(cmd, managed_env_name, managed_env_rg, workload_profile, managed_env_info)
 
     if registry_identity:
         if is_registry_msi_system(registry_identity):
@@ -3682,7 +3684,7 @@ def show_workload_profile(cmd, resource_group_name, env_name, workload_name):
     workload_profiles = WorkloadProfileClient.list(cmd, resource_group_name, env_name)
     profile = [p for p in workload_profiles if p["name"].lower() == workload_name.lower()]
     if not profile:
-        raise ValidationError(f"No workload profile found with name {workload_name} on the environment. The workload profile(s) on the environment are: {','.join([p['name'] for p in workload_profiles])}")
+        raise ValidationError(f"No such workload profile found on the environment. The workload profile(s) on the environment are: {','.join([p['name'] for p in workload_profiles])}")
     return profile[0]
 
 

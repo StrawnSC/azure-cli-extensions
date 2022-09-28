@@ -155,3 +155,7 @@ WORKLOAD_PROFILES = [
     "type": "Microsoft.App/availableManagedEnvironmentsWorkloadProfileTypes"
   }
 ]
+
+DEFAULT_WORKLOAD_PROFILE = "GP1"
+DEFAULT_MIN_NODES = 3
+DEFAULT_MAX_NODES = 5
