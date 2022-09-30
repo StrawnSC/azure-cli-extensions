@@ -213,6 +213,7 @@ class ContainerAppEnvironment(Resource):
             logs_key=self.logs_key,
             logs_customer_id=self.logs_customer_id,
             disable_warnings=True,
+            plan="consumption"
         )
         self.exists = True
         return env
