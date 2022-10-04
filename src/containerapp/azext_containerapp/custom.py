@@ -75,7 +75,7 @@ from ._ssh_utils import (SSH_DEFAULT_ENCODING, WebSocketConnection, read_ssh, ge
                          SSH_BACKUP_ENCODING)
 from ._constants import (MAXIMUM_SECRET_LENGTH, MICROSOFT_SECRET_SETTING_NAME, FACEBOOK_SECRET_SETTING_NAME, GITHUB_SECRET_SETTING_NAME,
                          GOOGLE_SECRET_SETTING_NAME, TWITTER_SECRET_SETTING_NAME, APPLE_SECRET_SETTING_NAME, CONTAINER_APPS_RP,
-                         NAME_INVALID, NAME_ALREADY_EXISTS, ACR_IMAGE_SUFFIX, HELLO_WORLD_IMAGE, WORKLOAD_PROFILES)
+                         NAME_INVALID, NAME_ALREADY_EXISTS, ACR_IMAGE_SUFFIX, HELLO_WORLD_IMAGE)
 
 logger = get_logger(__name__)
 
@@ -3659,19 +3659,7 @@ def show_auth_config(cmd, resource_group_name, name):
 
 
 def list_supported_workload_profiles(cmd, location):
-    location = location.lower().replace(" ", "")
-    supported_locations = ["australiaeast", "westeurope", "eastus2", "centraluseuap", "northcentralusstage"]
-    try:
-        return WorkloadProfileClient.list_supported(cmd, location)
-    except Exception as e:
-        if location not in supported_locations:
-            raise e
-        subscription = get_subscription_id(cmd.cli_ctx)
-        profiles = WORKLOAD_PROFILES
-        for p in profiles:
-            p["id"] = p["id"].replace("{{subscription}}", subscription)
-            p["location"] = location
-        return profiles
+    return WorkloadProfileClient.list_supported(cmd, location)
 
 
 def list_workload_profiles(cmd, resource_group_name, env_name):

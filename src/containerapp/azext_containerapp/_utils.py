@@ -1566,30 +1566,22 @@ def list_environment_locations(cmd):
 
 # normalizes workload profile name
 def get_workload_profile_type(cmd, name, location):
-    try:
-        name = name.lower()
-        workload_profiles = WorkloadProfileClient.list_supported(cmd, location)
-        if not workload_profiles:
-            raise ValidationError(f"Workload Profiles not supported in region {location}")
-        for p in workload_profiles:
-            if name == p["name"].lower() or name == p["properties"]["displayName"].lower() or name == p["properties"]["displayName"].lower().replace(" ", ""):
-                return p["name"]
-        raise ValidationError(f"Not a valid workload profile name: '{name}'. Run 'az containerapp env workload-profile list-supported -l {location}' to see options.")
-    except:  # TODO fix once ARM rollout complete
-        if len(name) == 3:
-            return name.upper()
-        return "".join([w[0] for w in name.split(" ")]).upper()
+    name = name.lower()
+    workload_profiles = WorkloadProfileClient.list_supported(cmd, location)
+    if not workload_profiles:
+        raise ValidationError(f"Workload Profiles not supported in region {location}")
+    for p in workload_profiles:
+        if name == p["name"].lower() or name == p["properties"]["displayName"].lower() or name == p["properties"]["displayName"].lower().replace(" ", ""):
+            return p["name"]
+    raise ValidationError(f"Not a valid workload profile name: '{name}'. Run 'az containerapp env workload-profile list-supported -l {location}' to see options.")
 
 
 def get_default_workload_profile(cmd, location):
-    try:
-        workload_profiles = WorkloadProfileClient.list_supported(cmd, location)
-        default_profiles = [p for p in workload_profiles if p["properties"].get("default")]
-        if not default_profiles:
-            raise ValidationError(f"Workload Profiles not supported in region {location}")
-        return default_profiles[0]["name"]
-    except:  # TODO remove once ARM deployment complete
-        return DEFAULT_WORKLOAD_PROFILE
+    workload_profiles = WorkloadProfileClient.list_supported(cmd, location)
+    default_profiles = [p for p in workload_profiles if p["properties"].get("default")]
+    if not default_profiles:
+        raise ValidationError(f"Workload Profiles not supported in region {location}")
+    return default_profiles[0]["name"]
 
 
 def get_default_workload_profile_from_env(cmd, env_def, resource_group):
